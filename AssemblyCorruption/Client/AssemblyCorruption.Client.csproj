@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\SharedModel\SharedModel.csproj" />
+    <ProjectReference Include="..\DynamicAssembly\DynamicAssembly.csproj" />
   </ItemGroup>
 
 </Project>
