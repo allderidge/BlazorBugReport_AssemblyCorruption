@@ -1,0 +1,53 @@
+﻿@page "/"
+@using System.Runtime.Loader
+@using System.IO
+@inject HttpClient Client
+
+<h1>Assembly Corruption</h1>
+
+@if (@ExceptionText == null)
+{
+    <h2>No error yet for iteration @Iteration</h2>
+}
+else
+{
+    <h2>
+        Error on Iteration: @Iteration
+    </h2>
+    @ExceptionText
+}
+
+
+@code
+{
+    private string ExceptionText { get; set; }
+    private string Iteration { get; set; }
+
+    protected async override Task OnInitializedAsync()
+    {
+        var assemblyData = await Client.GetFromJsonAsync<AssemblyData>("Assembly");
+        var assembly = AssemblyLoadContext.Default.LoadFromStream(
+            new MemoryStream(assemblyData.AssemblyDllBytes), assemblyData.AssemblyPdbBytes != null ? new MemoryStream(assemblyData.AssemblyPdbBytes) : null);
+        try
+        {
+            await Breaker.TestExerciseReflectionAsync(assembly, x =>
+            {
+                Iteration = x;
+                StateHasChanged();
+            });
+        }
+        catch (Exception e)
+        {
+            ExceptionText = e.ToString();
+        }
+
+        await base.OnInitializedAsync();
+    }
+
+    public class AssemblyData
+    {
+        public byte[] AssemblyDllBytes { get; set; }
+        public byte[] AssemblyPdbBytes { get; set; }
+    }
+
+}
