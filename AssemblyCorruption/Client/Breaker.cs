@@ -14,10 +14,15 @@ namespace AssemblyCorruption.Client
     {
         internal static async Task TestExerciseReflectionAsync(Assembly assembly, Action<string> iterationUpdate)
         {
+            var random = new Random();
             for (var x = 0; x < 1000; x++)
             {
                 // allocate memory that appears to cause assembly corruption
-                var memory = new byte[1024 * 1024 * 10];
+                for (int y = 0; y < 100; y++)
+                {
+                    var memory = new byte[1024 * 100];
+                    random.NextBytes(memory);
+                }
 
                 // the delay allows GC to occur
                 GC.Collect();
@@ -61,68 +66,7 @@ namespace AssemblyCorruption.Client
                     }
                 }
 
-                string message;
-                var serialiser = new DataContractSerializer(typeof(Container[]), new DataContractSerializerSettings
-                {
-                    PreserveObjectReferences = true,
-                    KnownTypes = assembly.GetTypes()
-                    .Where(t =>
-                        t != typeof(IInterfaceA) && typeof(IInterfaceA).IsAssignableFrom(t)
-                    )
-                });
-
-                using (var output = new StringWriter())
-                using (var writer = new XmlTextWriter(output) { Formatting = Formatting.None })
-                {
-                    serialiser.WriteObject(writer,
-                       assembly.GetTypes()
-                       .Where(t => typeof(IInterfaceC).IsAssignableFrom(t))
-                       .Select(t=>GenerateObjects(t)).ToArray());
-                    message = output.GetStringBuilder().ToString();
-                }
-                var reader = XmlDictionaryReader.CreateTextReader(
-                                new MemoryStream(Encoding.UTF8.GetBytes(message)),
-                                XmlDictionaryReaderQuotas.Max);
-                var result = (Container[])serialiser.ReadObject(reader, false);
-                iterationUpdate(x.ToString() + ":end");
-
-                static IInterfaceC CreateInstance(Type t)
-                {
-                    var instance = (IInterfaceC)Activator.CreateInstance(t);
-                    foreach (var prop in t.GetProperties())
-                    {
-                        if (typeof(Guid) == prop.PropertyType)
-                        {
-                            prop.SetValue(instance, Guid.NewGuid());
-                        }
-                        else if (typeof(string) == prop.PropertyType)
-                        {
-                            prop.SetValue(instance, "a test string");
-                        }
-                    }
-                    return instance;
-                }
-
-                static Container GenerateObjects(Type t)
-                {
-                    return new Container
-                    {
-                        TypeName = t.FullName,
-                        DataOfType = Enumerable.Range(0, 10).Select(e => CreateInstance(t)).ToArray()
-                    };
-                }
             }
-        }
-    
-
-        [DataContract]
-        public class Container
-        {
-            [DataMember]
-            public string TypeName { get; set; }
-
-            [DataMember]
-            public IInterfaceC[] DataOfType { get; set; }
         }
     }
 }
